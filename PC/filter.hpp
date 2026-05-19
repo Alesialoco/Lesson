@@ -7,6 +7,7 @@
 #include <string>
 #include <cmath>
 #include <unordered_map>
+#include <memory>
 
 namespace pointcloud_preprocessor
 {
@@ -38,35 +39,17 @@ private:
 
 /** \brief @b Filter represents the base filter class. 
  */
+template<PointCloudType T>
 class Filter
 {
 public:
   Filter(const std::string & filter_name = "pointcloud_preprocessor_filter") : filter_name_(filter_name), logger_(filter_name_) {}
   
-  const std::string& GetFilterName() { return filter_name_; }
-  
-  double GetDistance(PointCloud* pc, size_t index) {
-      if (pc->pointcloud_type_ == "XYZIR") {
-          double x = pc->points_[index * pc->point_size_ + 0];
-          double y = pc->points_[index * pc->point_size_ + 1];
-          double z = pc->points_[index * pc->point_size_ + 2];
-          return std::hypot(x, y, z);
-      }
+  virtual ~Filter() = default;
 
-      return pc->points_[index * pc->point_size_ + 5];
-  }
-  
-  double GetAzimuth(PointCloud* pc, size_t index) {
-      if (pc->pointcloud_type_ == "XYZIR") {
-          double x = pc->points_[index * pc->point_size_ + 0];
-          double y = pc->points_[index * pc->point_size_ + 1];
-          return std::atan2(y, x);
-      }
+  const std::string& GetFilterName() const { return filter_name_; }
 
-      return pc->points_[index * pc->point_size_ + 6];
-  }
-
-  virtual PointCloud* Apply(PointCloud* pc) = 0;
+  virtual std::unique_ptr<PointCloud<T>> Apply(PointCloud<T>* pc) = 0;
   
   virtual void SetParams(const FilterParametr& param) {
       params_ = std::move(param);
@@ -79,6 +62,36 @@ protected:
     std::string filter_name_ = "pointcloud_preprocessor_filter";
     Logger logger_;
     FilterParametr params_;
+};
+
+template<PointCloudType T>
+class WithDistanceAzimuthFilter : public Filter<T> {
+public:
+    WithDistanceAzimuthFilter(const std::string& filter_name = "DistanceAzimuthFilter")
+        : Filter<T>(filter_name) {}
+    
+    virtual ~WithDistanceAzimuthFilter() = default;
+    
+    double GetDistance(const PointCloud<T>* pc, size_t index) const {
+      if (T == PointCloudType::XYZIR) {
+          double x = pc->getPoints()[index * pc->getPointSize() + 0];
+          double y = pc->getPoints()[index * pc->getPointSize() + 1];
+          double z = pc->getPoints()[index * pc->getPointSize() + 2];
+          return std::hypot(x, y, z);
+      }
+      else
+        return pc->getPoints()[index * pc->getPointSize() + 5];
+    }
+    
+    double GetAzimuth(const PointCloud<T>* pc, size_t index) const {
+      if (T == PointCloudType::XYZIR) {
+          double x = pc->getPoints()[index * pc->getPointSize() + 0];
+          double y = pc->getPoints()[index * pc->getPointSize() + 1];
+          return std::atan2(y, x);
+      }
+      else
+        return pc->getPoints()[index * pc->getPointSize() + 6];
+    }
 };
 
 }  // namespace pointcloud_preprocessor
